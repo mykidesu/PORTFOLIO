@@ -1,0 +1,555 @@
+---
+title: "Rendu_projet"
+format:
+  html:
+    code-fold: true
+    code-tools: true
+jupyter: python3
+---
+```{python}
+
+```
+
+```{python}
+from palmerpenguins import load_penguins
+import plotly.express as px
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+import numpy as np
+import random
+```
+
+# Import des données
+
+```{python}
+penguins = load_penguins()
+penguins
+```
+
+On regarde un peu ce qu'il y a dans les données et on va les visualiser
+
+```{python}
+penguins.describe()
+```
+
+On regarde la proportion de chaque espèce dans le jeux de données
+
+```{python}
+#| fig-cap: '**Fig.1 Représentation des espèces au sein du jeu de données**'
+
+px.pie(penguins, names = "species",
+            labels={"species" : "Espèces"})
+```
+
+On regarde la distribution des pingouins sur les îles
+
+```{python}
+#| fig-cap: '**Fig.2 Représentation des espèces selon leur localité**'
+
+px.histogram(penguins, x = "island", color ="species",
+            labels={"island" : "Localisation"})
+```
+
+Est-ce qu'il y a une différence de Masse entre espèce ?
+
+```{python}
+#| fig-cap: "**Fig.3 Masse corporelle selon l'espèce**"
+
+px.box(penguins, x="species", y = "body_mass_g")
+```
+
+Est-ce qu'il y a une différence de Masse entre sex ?
+
+```{python}
+#| fig-cap: "**Fig.4 Masse corporelle selon le sex de l'individu**"
+
+px.box(penguins, x="sex", y = "body_mass_g")
+```
+
+Est-ce qu'il y a une différence de Masse insulaire ?
+
+```{python}
+#| fig-cap: '**Fig.5 Masse corporelle selon la localité**'
+
+px.box(penguins, x="island", y = "body_mass_g")
+```
+
+On a vu que certaines données sont manquante, on va donc regarder lesquels et quels sont les lignes avec des données manquantes.
+
+```{python}
+penguins[penguins['bill_length_mm'].isna()]
+```
+
+```{python}
+penguins[penguins['sex'].isna()]
+```
+
+Il y a 2 lignes pour lesquels on a aucune données hormis l'espèce et la localisation et quelques autres qui ont des données manquantes dans la colonne sex, on va donc essayer de completer les données à partir de ce qu'on a déjà.
+
+D'après Gorman et al. (2014) il y a un effet de dimorphisme sexuel chez le genre *Pygoscelis.* Par conséquent il faudra inférer les données de sex en fonction des données morphologique. Il faut également traiter les espèces séparement afin d'éviter les erreurs lié à la variation interspécifique et pour avoir des individu pertinents et 'réels'. Il faut aussi voir, étant donné que les pingouins Adélies sont présents dans les 3 localités, s'il y a un effet de la localité sur les caractéristiques morphologiques des individus. En effet la compétion inter-spécifique, intra-spécifique, le nombre d'individu, les accès aux ressources ou encore la prédation qui sont des facteurs pouvant dépendre de la localisation des populations (cf. théorie des niches) et qui vont influencer les caractéristiques morpho-écologique des individus.
+
+Pour cela, nous avons construit un modèle linéaire et effectuer des ANOVA sur les variables numériques (taille des ailes, taille du bec, profondeur du bec et masse corporelle) afin de tester si les îles sont un facteur de différence interpopulationnel intraspécifique (h0 : la localisation géographique n'a pas d'effet sur les caractéristiques morphologiques des individus).
+
+```{python}
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+from scipy import stats
+import statsmodels.stats.api as sms
+
+# Filtrer les données pour les espèces spécifiques
+adelie = penguins[penguins['species'] == 'Adelie']
+chinstrap = penguins[penguins['species'] == 'Chinstrap']
+gentoo = penguins[penguins['species'] == 'Gentoo']
+
+print("Longueur ailes")
+# Construire et ajuster le modèle de régression linéaire
+model = ols('flipper_length_mm ~ island', data=adelie).fit()
+
+# ANOVA
+anova_table = sm.stats.anova_lm(model, typ=2)
+print("ANOVA Table:")
+print(anova_table)
+
+# Test de normalité des résidus (Shapiro-Wilk test)
+shapiro_test = stats.shapiro(model.resid)
+print("\nShapiro-Wilk Test for Normality:")
+print(shapiro_test)
+
+# Test de l'homoscédasticité des résidus (Breusch-Pagan test)
+bp_test = sms.het_breuschpagan(model.resid, model.model.exog)
+print("\nBreusch-Pagan Test for Homoscedasticity:")
+print(f'LM Statistic: {bp_test[0]}, p-value: {bp_test[1]}, f-value: {bp_test[2]}, f p-value: {bp_test[3]}')
+
+# Test d'indépendance des résidus (Durbin-Watson test)
+dw_test = sm.stats.durbin_watson(model.resid)
+print("\nDurbin-Watson Test for Independence:")
+print(dw_test)
+
+print("Longueur bec")
+# Construire et ajuster le modèle de régression linéaire
+model = ols('bill_length_mm ~ island', data=adelie).fit()
+
+# ANOVA
+anova_table = sm.stats.anova_lm(model, typ=2)
+print("ANOVA Table:")
+print(anova_table)
+
+# Test de normalité des résidus (Shapiro-Wilk test)
+shapiro_test = stats.shapiro(model.resid)
+print("\nShapiro-Wilk Test for Normality:")
+print(shapiro_test)
+
+# Test de l'homoscédasticité des résidus (Breusch-Pagan test)
+bp_test = sms.het_breuschpagan(model.resid, model.model.exog)
+print("\nBreusch-Pagan Test for Homoscedasticity:")
+print(f'LM Statistic: {bp_test[0]}, p-value: {bp_test[1]}, f-value: {bp_test[2]}, f p-value: {bp_test[3]}')
+
+# Test d'indépendance des résidus (Durbin-Watson test)
+dw_test = sm.stats.durbin_watson(model.resid)
+print("\nDurbin-Watson Test for Independence:")
+print(dw_test)
+
+
+print("Profondeur bec")
+# Construire et ajuster le modèle de régression linéaire
+model = ols('bill_depth_mm ~ island', data=adelie).fit()
+
+# ANOVA
+anova_table = sm.stats.anova_lm(model, typ=2)
+print("ANOVA Table:")
+print(anova_table)
+
+# Test de normalité des résidus (Shapiro-Wilk test)
+shapiro_test = stats.shapiro(model.resid)
+print("\nShapiro-Wilk Test for Normality:")
+print(shapiro_test)
+
+# Test de l'homoscédasticité des résidus (Breusch-Pagan test)
+bp_test = sms.het_breuschpagan(model.resid, model.model.exog)
+print("\nBreusch-Pagan Test for Homoscedasticity:")
+print(f'LM Statistic: {bp_test[0]}, p-value: {bp_test[1]}, f-value: {bp_test[2]}, f p-value: {bp_test[3]}')
+
+# Test d'indépendance des résidus (Durbin-Watson test)
+dw_test = sm.stats.durbin_watson(model.resid)
+print("\nDurbin-Watson Test for Independence:")
+print(dw_test)
+
+print("Masse")
+# Construire et ajuster le modèle de régression linéaire
+model = ols('body_mass_g ~ island', data=adelie).fit()
+
+# ANOVA
+anova_table = sm.stats.anova_lm(model, typ=2)
+print("ANOVA Table:")
+print(anova_table)
+
+# Test de normalité des résidus (Shapiro-Wilk test)
+shapiro_test = stats.shapiro(model.resid)
+print("\nShapiro-Wilk Test for Normality:")
+print(shapiro_test)
+
+# Test de l'homoscédasticité des résidus (Breusch-Pagan test)
+bp_test = sms.het_breuschpagan(model.resid, model.model.exog)
+print("\nBreusch-Pagan Test for Homoscedasticity:")
+print(f'LM Statistic: {bp_test[0]}, p-value: {bp_test[1]}, f-value: {bp_test[2]}, f p-value: {bp_test[3]}')
+
+# Test d'indépendance des résidus (Durbin-Watson test)
+dw_test = sm.stats.durbin_watson(model.resid)
+print("\nDurbin-Watson Test for Independence:")
+print(dw_test)
+```
+
+D'après les tests, on ne rejette pas h0 car les p-value \> 0.05 pour les 4 variables et les 4 modèles sont ajustés donc il n'y a pas d'effet de la localisation des populations sur leurs caractéristiques morphologiques pour l'espèce Adélie.
+
+## Remplissage des lignes avec des valeurs manquantes
+
+```{python}
+Adelie = penguins.loc[(penguins['species'] == "Adelie")]
+```
+
+Afin de voir plus globalement le dimorphisme sexuel présent chez le genre *Pygoscelis*, nous avons fait des boxplot comparatif entre mâle et femelle pour chaque espèce.
+
+```{python}
+#| fig-cap: "**Fig.6 Boxplot des différentes variables morphologiques pour l'espèce Adélie (*Pygoscelis adeliae*)**"
+
+
+fig = make_subplots(rows=2, cols=2,
+                    subplot_titles=("Bill Length by Sex", "Bill Depth by Sex",
+                                    "Flipper Length by Sex", "Body Mass by Sex"))
+
+fig.add_trace(px.box(Adelie, x='sex', y='bill_length_mm', color='sex').data[1], row=1, col=1)
+fig.add_trace(px.box(Adelie, x='sex', y='bill_length_mm', color='sex').data[0], row=1, col=1)
+
+fig.add_trace(px.box(Adelie, x='sex', y='bill_depth_mm', color='sex').data[1], row=1, col=2)
+fig.add_trace(px.box(Adelie, x='sex', y='bill_depth_mm', color='sex').data[0], row=1, col=2)
+
+fig.add_trace(px.box(Adelie, x='sex', y='flipper_length_mm', color='sex').data[1], row=2, col=1)
+fig.add_trace(px.box(Adelie, x='sex', y='flipper_length_mm', color='sex').data[0], row=2, col=1)
+
+fig.add_trace(px.box(Adelie, x='sex', y='body_mass_g', color='sex').data[1], row=2, col=2)
+fig.add_trace(px.box(Adelie, x='sex', y='body_mass_g', color='sex').data[0], row=2, col=2)
+
+fig.update_layout(title_text="Adelie Penguins Measurements by Sex")
+
+fig.show()
+```
+
+```{python}
+Gentoo = penguins.loc[(penguins['species'] == "Gentoo")]
+```
+
+```{python}
+#| fig-cap: "**Fig.6 Boxplot des différentes variables morphologiques pour l'espèce Gentoo(*Pygoscelis papua*)**"
+#| width: '80vw'
+
+fig = make_subplots(rows=2, cols=2,
+                    subplot_titles=("Bill Length by Sex", "Bill Depth by Sex",
+                                    "Flipper Length by Sex", "Body Mass by Sex"))
+
+fig.add_trace(px.box(Gentoo, x='sex', y='bill_length_mm', color='sex').data[0], row=1, col=1)
+fig.add_trace(px.box(Gentoo, x='sex', y='bill_length_mm', color='sex').data[1], row=1, col=1)
+
+fig.add_trace(px.box(Gentoo, x='sex', y='bill_depth_mm', color='sex').data[0], row=1, col=2)
+fig.add_trace(px.box(Gentoo, x='sex', y='bill_depth_mm', color='sex').data[1], row=1, col=2)
+
+fig.add_trace(px.box(Gentoo, x='sex', y='flipper_length_mm', color='sex').data[0], row=2, col=1)
+fig.add_trace(px.box(Gentoo, x='sex', y='flipper_length_mm', color='sex').data[1], row=2, col=1)
+
+fig.add_trace(px.box(Gentoo, x='sex', y='body_mass_g', color='sex').data[0], row=2, col=2)
+fig.add_trace(px.box(Gentoo, x='sex', y='body_mass_g', color='sex').data[1], row=2, col=2)
+
+fig.update_layout(title_text="Gentoo Penguins Measurements by Sex")
+
+fig.show()
+```
+
+```{python}
+Chinstrap = penguins.loc[(penguins['species'] == "Chinstrap")]
+```
+
+```{python}
+#| fig-cap: "**Fig.6 Boxplot des différentes variables morphologiques pour l'espèce Chinstrap(*Pygoscelis antarcticus*)**"
+#| width: '80vw'
+
+fig = make_subplots(rows=2, cols=2,
+                    subplot_titles=("Bill Length by Sex", "Bill Depth by Sex",
+                                    "Flipper Length by Sex", "Body Mass by Sex"))
+
+fig.add_trace(px.box(Chinstrap, x='sex', y='bill_length_mm', color='sex').data[0], row=1, col=1)
+fig.add_trace(px.box(Chinstrap, x='sex', y='bill_length_mm', color='sex').data[1], row=1, col=1)
+
+fig.add_trace(px.box(Chinstrap, x='sex', y='bill_depth_mm', color='sex').data[0], row=1, col=2)
+fig.add_trace(px.box(Chinstrap, x='sex', y='bill_depth_mm', color='sex').data[1], row=1, col=2)
+
+fig.add_trace(px.box(Chinstrap, x='sex', y='flipper_length_mm', color='sex').data[0], row=2, col=1)
+fig.add_trace(px.box(Chinstrap, x='sex', y='flipper_length_mm', color='sex').data[1], row=2, col=1)
+
+fig.add_trace(px.box(Chinstrap, x='sex', y='body_mass_g', color='sex').data[0], row=2, col=2)
+fig.add_trace(px.box(Chinstrap, x='sex', y='body_mass_g', color='sex').data[1], row=2, col=2)
+
+fig.update_layout(title_text="Chinstrap Penguins Measurements by Sex")
+
+fig.show()
+```
+
+Puis nous avons fait une comparaison pour chaque variable entre chaque espèce et chaque sex.
+
+```{python}
+#| fig-cap: "**Fig.7 Variabilité de la taille du bec pour chaque espèce et chaque par sexe**"
+
+px.box(penguins, x='sex', y='bill_length_mm', facet_col='species', color='sex')
+```
+
+```{python}
+#| fig-cap: "**Fig.8 Variabilité de la profondeur du bec pour chaque espèce et chaque par sex**"
+
+px.box(penguins, x='sex', y='bill_depth_mm', facet_col='species', color='sex')
+```
+
+```{python}
+#| fig-cap: "**Fig.9 Variabilité de la taille des ailes pour chaque espèce et chaque par sex**"
+
+px.box(penguins, x='sex', y='flipper_length_mm', facet_col='species', color='sex')
+```
+
+```{python}
+#| fig-cap: "**Fig.10 Variabilité de la masse corporelle pour chaque espèce et chaque par sex**"
+
+px.box(penguins, x='sex', y='body_mass_g', facet_col='species', color='sex')
+```
+
+Après avoir explorer les données, nous pouvons maitenant remplir les lignes avec des cellules vides.
+
+Tout d'abord nous remplissons le sexe en fonction de la masse corporelle chez les pingouins Adélie puis chez Gentoo. Si la masse est supérieur au Q1 des mâles alors c'est un mâle si elle est inférieur au Q3 des femelle alors c'est une femelle. s'il reste des valeurs manquante, alors on défini une zone plus centrale correspondant à la moyenne entre Q1-mâle et Q3-femelle.
+
+```{python}
+#? Calcul des quantiles (= bornes pour déterminer )
+Q1_adelie_male = np.percentile(penguins["body_mass_g"].loc[(penguins["sex"]=="male") & (penguins['species'] == 'Adelie')], 25)
+Q3_adelie_male = np.percentile(penguins["body_mass_g"].loc[(penguins["sex"]=="male") & (penguins['species'] == 'Adelie')], 75)
+
+Q1_adelie_female = np.percentile(penguins["body_mass_g"].loc[(penguins["sex"]=="female") & (penguins['species'] == 'Adelie')], 25)
+Q3_adelie_female = np.percentile(penguins["body_mass_g"].loc[(penguins["sex"]=="female") & (penguins['species'] == 'Adelie')], 75)
+
+#?MOYENNE
+mean_mass_adelie = np.mean([Q3_adelie_female, Q1_adelie_male])
+```
+
+```{python}
+# On remplie les lignes qui ont seulement un NaN pour le sex pour les Adelie
+
+penguins.loc[(penguins["sex"].isna()) & (penguins['species'] == 'Adelie') & (penguins["body_mass_g"] <= Q3_adelie_female), "sex"] = "female"
+penguins.loc[(penguins["sex"].isna()) & (penguins['species'] == 'Adelie') & (penguins["body_mass_g"] >= Q1_adelie_male), "sex"] = "male"
+
+penguins.loc[(penguins["sex"].isna()) & (penguins['species'] == 'Adelie') & (penguins["body_mass_g"] > mean_mass_adelie), "sex"] = "male"
+penguins.loc[(penguins["sex"].isna()) & (penguins['species'] == 'Adelie') & (penguins["body_mass_g"] < mean_mass_adelie), "sex"] = "female"
+```
+
+```{python}
+penguins[penguins['sex'].isna()]
+```
+
+```{python}
+Q1_gentoo_male = np.percentile(penguins["body_mass_g"].loc[(penguins["sex"]=="male") & (penguins['species'] == 'Gentoo')], 25)
+Q3_gentoo_male = np.percentile(penguins["body_mass_g"].loc[(penguins["sex"]=="male") & (penguins['species'] == 'Gentoo')], 75)
+
+Q1_gentoo_female = np.percentile(penguins["body_mass_g"].loc[(penguins["sex"]=="female") & (penguins['species'] == 'Gentoo')], 25)
+Q3_gentoo_female = np.percentile(penguins["body_mass_g"].loc[(penguins["sex"]=="female") & (penguins['species'] == 'Gentoo')], 75)
+```
+
+```{python}
+## On remplie les lignes qui ont seulement un NaN pour le sex pour les Gentoo
+penguins.loc[(penguins["sex"].isna()) & (penguins['species'] == 'Gentoo') & (penguins["body_mass_g"] <= Q3_gentoo_female), "sex"] = "female"
+penguins.loc[(penguins["sex"].isna()) & (penguins['species'] == 'Gentoo') & (penguins["body_mass_g"] >= Q1_gentoo_male), "sex"] = "male"
+```
+
+```{python}
+penguins[penguins['sex'].isna()]
+```
+
+Ainsi nos pingouins asexués ont maintenant un sexe défini sur leurs paramètres morphologiques.
+
+Il faut encore remplir nos 2 lignes entièrement vide, pour cela on va leur atribuer aléatoirement un sexe puis leur attribué des caractéristiques morphologiques moyenne selon leur sexe et leur espèce.
+
+```{python}
+# On traite les lignes entièrement NaN
+
+penguins.loc[(penguins["sex"].isna()), "sex"] = random.choice(["female", "male"])
+```
+
+```{python}
+penguins[penguins['body_mass_g'].isna()]
+```
+
+```{python}
+#? Remplacement des valeurs NaN restantes dans les colonnes de métriques par leur moyenne par sous dataframe en fonction du sexe
+#? Liste des colonnes à réévaluer
+colunms = ['bill_length_mm', 'bill_depth_mm','flipper_length_mm', 'body_mass_g']
+
+
+for col in colunms :
+    #!Valeurs moyennes de l'item pour le sex = male
+    mean_item_male_adelie = penguins[f"{col}"].loc[(penguins['species'] == 'Adelie') & (penguins["sex"]=="male")].mean()
+    mean_item_male_gentoo = penguins[f"{col}"].loc[(penguins['species'] == 'Gentoo') & (penguins["sex"]=="male")].mean()
+
+    #!Valeurs moyennes de l'item pour le sex = female
+    mean_item_female_adelie = penguins[f"{col}"].loc[(penguins['species'] == 'Adelie') & (penguins["sex"]=="female")].mean()
+    mean_item_female_gentoo = penguins[f"{col}"].loc[(penguins['species'] == 'Gentoo') & (penguins["sex"]=="female")].mean()
+
+    #?replacement par sous dataframe
+    #! adelie
+    penguins.loc[(penguins[f"{col}"].isna()) # l'item est vide
+        & (penguins['species'] == 'Adelie')
+        & (penguins["sex"]=="female") , # le sex est "female"
+        f"{col}"#remplacement de l'item par sa moyenne selon le critère du sexe
+    ] = mean_item_female_adelie
+
+    penguins.loc[
+        (penguins[f"{col}"].isna())# l'item est vide
+        & (penguins['species'] == 'Adelie')
+        & (penguins["sex"]=="male") ,# le sex est "male"
+        f"{col}" #remplacement de l'item par sa moyenne selon le critère du sexe
+    ]= mean_item_male_adelie
+
+    #! gentoo
+    penguins.loc[
+        (penguins[f"{col}"].isna())# l'item est vide
+        & (penguins['species'] == 'Gentoo')
+        & (penguins["sex"]=="female") ,# le sex est "female"
+        f"{col}"#remplacement de l'item par sa moyenne selon le critère du sexe
+    ]= mean_item_female_gentoo
+
+    penguins.loc[
+        (penguins[f"{col}"].isna())# l'item est vide
+        & (penguins['species'] == 'Gentoo')
+        & (penguins["sex"]=="male") ,# le sex est "male"
+        f"{col}"#remplacement de l'item par sa moyenne selon le critère du sexe
+    ]= mean_item_male_gentoo
+```
+
+Ainsi nous nous retrouvons avec un jeu de donnée complet de 344 individu et 3 espèces.
+
+```{python}
+penguins.iloc[[3,271]]
+```
+
+# Machine Learning
+
+On cherche à prédire l'espèce du pengouins selon ses caractéristiques morphologiques. Donc on a une variable cible (l'espèce) qui est catégorielle. On va donc procéder à un apprentissage supervisé de Classification.
+
+```{python}
+penguins_study = penguins.copy()
+```
+
+afin d'avoir des colonne de sexe en TRUE/FALSE, on effectue d'abord un get_dummies de la librairie Pandas.
+
+```{python}
+dummy_sex = pd.get_dummies(penguins_study['sex'], prefix='sex')
+penguins_study = penguins_study.drop(['island', 'year', 'sex'], axis=1)
+penguins_study = pd.concat([penguins_study, dummy_sex], axis = 1)
+penguins_study
+```
+
+On peut a présent construire le test pour pouvoir entrainer notre modèle.
+
+On cherche à déterminer une espèce selon les caractéristiques morphologique d'un individu, l'espèce est donc notre variable cible comme précisé précédemment. On construit donc les jeux de données d'entrainement et de test sur cette base (nous avons ignoré la variable island dans les variable explicatives bien qu'elle soit discriminante pour déterminé certaines espèces, nous ne nous interessons que aux données morphologiques).
+
+```{python}
+from sklearn.model_selection import train_test_split
+
+X_train, X_test, y_train, y_test = train_test_split(
+    penguins_study[['bill_length_mm', 'bill_depth_mm', 'flipper_length_mm', 'body_mass_g', 'sex_female', 'sex_male']],
+    penguins_study['species'],
+    test_size=0.33,
+    random_state=42
+    )
+```
+
+Etant donnée que la variable cible est défini et qu'elle est catégorielle, nous faisons un arbre de décision de classification.
+
+```{python}
+from sklearn.tree import DecisionTreeClassifier
+```
+
+Il faut construire et entrainer le modèle, tout d'abord nous fixons la profondeur maximale à 2 (arbitraire) afin de voir un premier jet de ce qui peut être obtenu.
+
+```{python}
+model = DecisionTreeClassifier(max_depth=2)
+model.fit(X_train, y_train)
+```
+
+```{python}
+#| fig-cap: "**Fig.11 Arbre obtenu avec un profondeur max de 2**"
+
+from sklearn.tree import plot_tree
+
+# agrandissement de la taille du graphique
+fig = plt.figure(figsize=(10, 6))
+_ = plot_tree(model,
+          feature_names=model.feature_names_in_,
+          filled=True,
+          rounded=True,
+          fontsize=10)
+```
+
+On arrive à obtenir un arbre mais pas satisfaisant (tout les individus ne sont pas classés)
+
+On va donc regarder quelle est la profondeur otpimale pour avoir l'accuracy la plus élevé possible.
+
+```{python}
+from sklearn.metrics import accuracy_score
+
+accuracy_list = []
+
+for depth in range(2,11):
+    model = DecisionTreeClassifier(max_depth=depth)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    accuracy_result = accuracy_score(y_test, y_pred)
+
+    accuracy_list.append({'Max_depth': depth, 'Accuracy': accuracy_result})
+
+df = pd.DataFrame(accuracy_list)
+df
+```
+
+```{python}
+#| fig-cap: "**Fig.12 Evolution de l'accuracy du modèle selon la profondeur maximale de l'arbre**"
+
+px.line(df, x='Max_depth', y='Accuracy', markers=True)
+```
+
+D'après ces résultats, passé une max_depth de 3, l'accuracy est au maximale, en effet en faisant un arbre avec une accuracy de 3, on obtient quasiment 100% des pingouins qui sont classer, avec une profondeur de 4, le tri est complet et tout les pingouins sont répartis dans une espèce selon ses caractéristiques morphologiques.
+
+```{python}
+model = DecisionTreeClassifier(max_depth=4)
+model.fit(X_train, y_train)
+```
+
+```{python}
+#| fig-cap: "**Fig.13 Arbre obtenu avec un profondeur max de 4**"
+
+# agrandissement de la taille du graphique
+fig = plt.figure(figsize=(14, 6))
+_ = plot_tree(model,
+          feature_names=model.feature_names_in_,
+          filled=True,
+          rounded=True,
+          fontsize=10)
+```
+
+```{python}
+model.classes_
+```
+
+```{python}
+model.feature_importances_
+```
+
+```{python}
+pd.DataFrame({'Variable explicative':model.feature_names_in_, 'Valeur':model.feature_importances_})
+```
+
+Pour finir, on observe l'importance de chaque varible explicative dans la détermination de l'espèce.
